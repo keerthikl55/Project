@@ -1,4 +1,4 @@
-Hi, I'm Katherine! 👋
+Hi, I'm Keerthivasan! 👋
 🧠 I'm currently learning Machine learning
 
 👯‍♀️ I'm looking to collaborate on ML projects.
