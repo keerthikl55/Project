@@ -1,4 +1,7 @@
 Hi, I'm Keerthivasan! 👋
+🚀 About Me
+I'm Engineering Student 
+
 🧠 I'm currently learning Machine learning
 
 👯‍♀️ I'm looking to collaborate on ML projects.
