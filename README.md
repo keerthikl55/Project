@@ -27,9 +27,12 @@ The scope of this project encompasses the development of a comprehensive and rob
 
 **Tech Stack**
 
-Web IDES Colaboratory
-Language: Python
+Web IDES Colaboratory.
+
+Language: Python.
+
 Libraries Pandas, numpy, matplot, seborn, plotly, sklearn, tensorflow, pmdarima, prophet, Xgboost, statsmodel.
+
 Algorithms: ARIMAX, FB Prophet, Xgboost, LSTM.
 
 **Methodology**
