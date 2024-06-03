@@ -1,6 +1,4 @@
-Hi, I'm Keerthivasan! 👋
-🚀 About Me
-I'm Engineering Student 
+Hi, I'm Engineering Student👋
 
 🧠 I'm currently learning Machine learning
 
@@ -30,7 +28,7 @@ The Hybrid Crypto Trend Analysis application utilizes advanced neural networks c
 
 The scope of this project encompasses the development of a comprehensive and robust Bitcoin price prediction system using a hybrid model that integrates ARIMAX, LSTM, XG Boost, and Facebook Prophet algorithms. The project will involve extensive data preprocessing and feature engineering, including the conversion of Unix timestamps and the computation of rolling statistics for both momentary and permanent trends. The key objective is to provide accurate and reliable Bitcoin price forecasts, catering to cryptocurrency enthusiasts, traders, and investors. Additionally, the project includes the implementation of an interactive web-based visualization tool to present forecasted prices and trends, offering users an intuitive and accessible means to gain insights into cryptocurrency market dynamics. This project's scope includes the development of a full-fledged system for Bitcoin price prediction and visualization, with the potential for further enhancements and applications in the evolving cryptocurrency landscape.
 
-**Tech Stack**
+🚀**Tech Stack**
 
 Web IDES Colaboratory.
 
