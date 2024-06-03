@@ -9,6 +9,11 @@ I'm Engineering Student
 🛠 Skills
 Javascript, HTML, CSS, Figma, Python.
 
+Authors
+Keerthivasan V,
+Madhesh V,
+Raghul B.
+
 **A Hybrid Crypto Trend Analysis And Online Graphical Representation Model Using Neural Network**
 
 Bitcoin price prediction has become a significant area of research due to its volatile nature and potential for financial gain. In this study, we employed four distinct algorithms, namely Auto Regressive Integrated Moving Average with Exogenous Variables (ARIMAX), Long Short-Term Memory (LSTM) networks, Facebook Prophet, and XGBoost, to forecast the price of Bitcoin. The analysis utilized historical Bitcoin price data spanning several years. Initially, the data underwent preprocessing steps, including handling missing values and visualizing temporal trends. Subsequently, we engineered features such as rolling means and standard deviations to capture potential patterns. Each algorithm was then applied, and their respective predictions were evaluated using performance metrics like Root Mean Squared Error (RMSE) and Mean Absolute Error (MAE). Our results indicate that LSTM and FB Prophet demonstrated superior predictive capabilities, yielding the highest accuracy percentages. Additionally, we explored the potential of hybrid models by combining forecasts from multiple algorithms, which further enhanced prediction accuracy. Overall, our study contributes to the ongoing efforts to develop robust models for Bitcoin price prediction, thereby aiding investors and stakeholders in making informed decisions in the cryptocurrency market.
