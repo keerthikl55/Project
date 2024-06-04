@@ -1,0 +1,1469 @@
+from google.colab import drive
+drive.mount('/content/drive')
+     
+Drive already mounted at /content/drive; to attempt to forcibly remount, call drive.mount("/content/drive", force_remount=True).
+
+!pip install pmdarima -q
+!pip install pystan~=2.14 -q
+!pip install pystan -q
+!pip install fbprophet -q
+     
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.1/2.1 MB 8.0 MB/s eta 0:00:00
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.2/16.2 MB 14.2 MB/s eta 0:00:00
+  Preparing metadata (setup.py) ... done
+  Building wheel for pystan (setup.py) ... done
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 64.0/64.0 kB 1.7 MB/s eta 0:00:00
+  Preparing metadata (setup.py) ... done
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 47.9/47.9 kB 4.8 MB/s eta 0:00:00
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.8/5.8 MB 42.8 MB/s eta 0:00:00
+  Preparing metadata (setup.py) ... done
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 48.2 MB/s eta 0:00:00
+  error: subprocess-exited-with-error
+  
+  × python setup.py bdist_wheel did not run successfully.
+  │ exit code: 1
+  ╰─> See above for output.
+  
+  note: This error originates from a subprocess, and is likely not a problem with pip.
+  Building wheel for fbprophet (setup.py) ... error
+  ERROR: Failed building wheel for fbprophet
+  Building wheel for pymeeus (setup.py) ... done
+ERROR: Could not build wheels for fbprophet, which is required to install pyproject.toml-based projects
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from datetime import datetime
+import seaborn as sns
+import plotly.express as px
+from itertools import product
+import warnings
+import statsmodels.api as sm
+plt.style.use('seaborn-darkgrid')
+     
+<ipython-input-3-42fe6461b125>:10: MatplotlibDeprecationWarning: The seaborn styles shipped by Matplotlib are deprecated since 3.6, as they no longer correspond to the styles shipped by seaborn. However, they will remain available as 'seaborn-v0_8-<style>'. Alternatively, directly use the seaborn API instead.
+  plt.style.use('seaborn-darkgrid')
+
+BTC_DF = pd.read_csv("/content/drive/MyDrive/bit.csv")
+BTC_DF.head()
+     
+Timestamp	Open	High	Low	Close	Volume_(BTC)	Volume_(Currency)	Weighted_Price
+0	1325317920	4.39	4.39	4.39	4.39	0.455581	2.0	4.39
+1	1325317980	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+2	1325318040	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+3	1325318100	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+4	1325318160	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+
+BTC_DF.info()
+     
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 4857377 entries, 0 to 4857376
+Data columns (total 8 columns):
+ #   Column             Dtype  
+---  ------             -----  
+ 0   Timestamp          int64  
+ 1   Open               float64
+ 2   High               float64
+ 3   Low                float64
+ 4   Close              float64
+ 5   Volume_(BTC)       float64
+ 6   Volume_(Currency)  float64
+ 7   Weighted_Price     float64
+dtypes: float64(7), int64(1)
+memory usage: 296.5 MB
+
+# Converting the Timestamp column from string to datetime
+BTC_DF['Timestamp'] = [datetime.fromtimestamp(x) for x in BTC_DF['Timestamp']]
+BTC_DF.info()
+BTC_DF.head()
+     
+<class 'pandas.core.frame.DataFrame'>
+RangeIndex: 4857377 entries, 0 to 4857376
+Data columns (total 8 columns):
+ #   Column             Dtype         
+---  ------             -----         
+ 0   Timestamp          datetime64[ns]
+ 1   Open               float64       
+ 2   High               float64       
+ 3   Low                float64       
+ 4   Close              float64       
+ 5   Volume_(BTC)       float64       
+ 6   Volume_(Currency)  float64       
+ 7   Weighted_Price     float64       
+dtypes: datetime64[ns](1), float64(7)
+memory usage: 296.5 MB
+Timestamp	Open	High	Low	Close	Volume_(BTC)	Volume_(Currency)	Weighted_Price
+0	2011-12-31 07:52:00	4.39	4.39	4.39	4.39	0.455581	2.0	4.39
+1	2011-12-31 07:53:00	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+2	2011-12-31 07:54:00	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+3	2011-12-31 07:55:00	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+4	2011-12-31 07:56:00	NaN	NaN	NaN	NaN	NaN	NaN	NaN
+
+print('Dataset Shape: ',  BTC_DF.shape)
+     
+Dataset Shape:  (4857377, 8)
+
+BTC_DF.set_index("Timestamp").Weighted_Price.plot(figsize=(14,7), title="Bitcoin Weighted Price")
+     
+<Axes: title={'center': 'Bitcoin Weighted Price'}, xlabel='Timestamp'>
+
+
+#calculating missing values in the dataset
+missing_values = BTC_DF.isnull().sum()
+missing_per = (missing_values/BTC_DF.shape[0])*100
+missing_table = pd.concat([missing_values,missing_per], axis=1, ignore_index=True)
+missing_table.rename(columns={0:'Total Missing Values',1:'Missing %'}, inplace=True)
+missing_table
+     
+Total Missing Values	Missing %
+Timestamp	0	0.00000
+Open	1243608	25.60246
+High	1243608	25.60246
+Low	1243608	25.60246
+Close	1243608	25.60246
+Volume_(BTC)	1243608	25.60246
+Volume_(Currency)	1243608	25.60246
+Weighted_Price	1243608	25.60246
+
+def fill_missing(df):
+    ### function to impute missing values using interpolation ###
+    df['Open'] = df['Open'].interpolate()
+    df['Close'] = df['Close'].interpolate()
+    df['Weighted_Price'] = df['Weighted_Price'].interpolate()
+    df['Volume_(BTC)'] = df['Volume_(BTC)'].interpolate()
+    df['Volume_(Currency)'] = df['Volume_(Currency)'].interpolate()
+    df['High'] = df['High'].interpolate()
+    df['Low'] = df['Low'].interpolate()
+    print(df.head())
+    print(df.isnull().sum())
+
+     
+
+fill_missing(BTC_DF)
+     
+            Timestamp  Open  High   Low  Close  Volume_(BTC)  \
+0 2011-12-31 07:52:00  4.39  4.39  4.39   4.39      0.455581   
+1 2011-12-31 07:53:00  4.39  4.39  4.39   4.39      0.555046   
+2 2011-12-31 07:54:00  4.39  4.39  4.39   4.39      0.654511   
+3 2011-12-31 07:55:00  4.39  4.39  4.39   4.39      0.753977   
+4 2011-12-31 07:56:00  4.39  4.39  4.39   4.39      0.853442   
+
+   Volume_(Currency)  Weighted_Price  
+0           2.000000            4.39  
+1           2.436653            4.39  
+2           2.873305            4.39  
+3           3.309958            4.39  
+4           3.746611            4.39  
+Timestamp            0
+Open                 0
+High                 0
+Low                  0
+Close                0
+Volume_(BTC)         0
+Volume_(Currency)    0
+Weighted_Price       0
+dtype: int64
+
+#created a copy
+bitstamp_non_indexed = BTC_DF.copy()
+BTC_DF = BTC_DF.set_index('Timestamp')
+BTC_DF.head()
+     
+Open	High	Low	Close	Volume_(BTC)	Volume_(Currency)	Weighted_Price
+Timestamp							
+2011-12-31 07:52:00	4.39	4.39	4.39	4.39	0.455581	2.000000	4.39
+2011-12-31 07:53:00	4.39	4.39	4.39	4.39	0.555046	2.436653	4.39
+2011-12-31 07:54:00	4.39	4.39	4.39	4.39	0.654511	2.873305	4.39
+2011-12-31 07:55:00	4.39	4.39	4.39	4.39	0.753977	3.309958	4.39
+2011-12-31 07:56:00	4.39	4.39	4.39	4.39	0.853442	3.746611	4.39
+
+ax = BTC_DF['Weighted_Price'].plot(title='Bitcoin Prices', grid=True, figsize=(14,7))
+ax.set_xlabel('Year')
+ax.set_ylabel('Weighted Price')
+ax.axvspan('2018-12-01','2019-01-31',color='red', alpha=0.3)
+ax.axhspan(17500,20000, color='green',alpha=0.3)
+     
+<matplotlib.patches.Polygon at 0x7f42bc1c44c0>
+
+
+#Zooming in
+ax = BTC_DF.loc['2017-10':'2019-03','Weighted_Price'].plot(marker='o', linestyle='-',figsize=(15,6), title="Oct-17 to March-19 Trend", grid=True)
+ax.set_xlabel('Month')
+ax.set_ylabel('Weighted_Price')
+     
+Text(0, 0.5, 'Weighted_Price')
+
+
+sns.kdeplot(BTC_DF['Weighted_Price'], shade=True)
+     
+<ipython-input-15-71a8927f007c>:1: FutureWarning: 
+
+`shade` is now deprecated in favor of `fill`; setting `fill=True`.
+This will become an error in seaborn v0.14.0; please update your code.
+
+  sns.kdeplot(BTC_DF['Weighted_Price'], shade=True)
+<Axes: xlabel='Weighted_Price', ylabel='Density'>
+
+
+plt.figure(figsize=(15,12))
+plt.suptitle('Lag Plots', fontsize=22)
+
+plt.subplot(3,3,1)
+pd.plotting.lag_plot(BTC_DF['Weighted_Price'], lag=1) #minute lag
+plt.title('1-Minute Lag')
+
+plt.subplot(3,3,2)
+pd.plotting.lag_plot(BTC_DF['Weighted_Price'], lag=60) #hourley lag
+plt.title('1-Hour Lag')
+
+plt.subplot(3,3,3)
+pd.plotting.lag_plot(BTC_DF['Weighted_Price'], lag=1440) #Daily lag
+plt.title('Daily Lag')
+
+plt.subplot(3,3,4)
+pd.plotting.lag_plot(BTC_DF['Weighted_Price'], lag=10080) #weekly lag
+plt.title('Weekly Lag')
+
+plt.subplot(3,3,5)
+pd.plotting.lag_plot(BTC_DF['Weighted_Price'], lag=43200) #month lag
+plt.title('1-Month Lag')
+
+plt.legend()
+plt.show()
+     
+WARNING:matplotlib.legend:No artists with labels found to put in legend.  Note that artists whose label start with an underscore are ignored when legend() is called with no argument.
+
+
+hourly_data = BTC_DF.resample('1H').mean()
+hourly_data = hourly_data.reset_index()
+hourly_data.head()
+     
+Timestamp	Open	High	Low	Close	Volume_(BTC)	Volume_(Currency)	Weighted_Price
+0	2011-12-31 07:00:00	4.39	4.39	4.39	4.39	0.803709	3.528285	4.39
+1	2011-12-31 08:00:00	4.39	4.39	4.39	4.39	4.185530	18.374477	4.39
+2	2011-12-31 09:00:00	4.39	4.39	4.39	4.39	10.153449	44.573640	4.39
+3	2011-12-31 10:00:00	4.39	4.39	4.39	4.39	16.121368	70.772803	4.39
+4	2011-12-31 11:00:00	4.39	4.39	4.39	4.39	22.089286	96.971967	4.39
+
+BTC_Price_daily = BTC_DF.resample("24H").mean() #daily resampling
+     
+
+import plotly.express as px
+
+BTC_Price_daily.reset_index(inplace=True)
+fig = px.line(BTC_Price_daily, x='Timestamp', y='Weighted_Price', title='Weighted Price with Range Slider and Selectors')
+fig.update_layout(hovermode="x")
+
+fig.update_xaxes(
+    rangeslider_visible=True,
+    rangeselector=dict(
+        buttons=list([
+            dict(count=1, label="1m", step="month", stepmode="backward"),
+            dict(count=6, label="6m", step="month", stepmode="backward"),
+            dict(count=1, label="1y", step="year", stepmode="backward"),
+            dict(count=2, label="2y", step="year", stepmode="backward"),
+            dict(step="all")
+
+        ])
+    )
+)
+fig.show()
+     
+
+plot_ = BTC_Price_daily.set_index("Timestamp")["2017-12"]
+     
+<ipython-input-32-3a9a6b135323>:1: FutureWarning:
+
+Indexing a DataFrame with a datetimelike index using a single string to slice the rows, like `frame[string]`, is deprecated and will be removed in a future version. Use `frame.loc[string]` instead.
+
+
+import plotly.graph_objects as go
+
+fig = go.Figure(data=go.Candlestick(x= plot_.index,
+                    open=plot_['Open'],
+                    high=plot_['High'],
+                    low=plot_['Low'],
+                    close=plot_['Close']))
+fig.show()
+     
+
+from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.tsa.stattools import kpss
+from statsmodels.tsa.stattools import adfuller
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+fill_missing(BTC_Price_daily)
+     
+   Timestamp      Open      High       Low     Close  Volume_(BTC)  \
+0 2011-12-31  4.476415  4.478946  4.476415  4.478946     17.940426   
+1 2012-01-01  4.765576  4.765576  4.765576  4.765576      6.790640   
+2 2012-01-02  5.006549  5.006549  5.006549  5.006549     15.183373   
+3 2012-01-03  5.206530  5.206530  5.206530  5.206530      7.917041   
+4 2012-01-04  5.202511  5.241699  5.202511  5.241699     13.659736   
+
+   Volume_(Currency)  Weighted_Price  
+0          79.495594        4.477370  
+1          32.971105        4.765576  
+2          75.932706        5.006549  
+3          40.795994        5.206530  
+4          72.860096        5.216680  
+Timestamp            0
+Open                 0
+High                 0
+Low                  0
+Close                0
+Volume_(BTC)         0
+Volume_(Currency)    0
+Weighted_Price       0
+dtype: int64
+
+BTC_Price_daily.Weighted_Price
+     
+0           4.477370
+1           4.765576
+2           5.006549
+3           5.206530
+4           5.216680
+            ...     
+3374    55192.259741
+3375    55833.589719
+3376    56910.365453
+3377    58346.023547
+3378    58764.349363
+Name: Weighted_Price, Length: 3379, dtype: float64
+
+plt.figure(figsize=(15,12))
+series = BTC_Price_daily.Weighted_Price
+result = seasonal_decompose(series, model='additive',period=1)
+result.plot()
+
+     
+
+<Figure size 1500x1200 with 0 Axes>
+
+
+acf = plot_acf(series, lags=50, alpha=0.05)
+plt.title("ACF for Weighted Price", size=20)
+plt.show()
+
+     
+
+
+plot_pacf(series, lags=50, alpha=0.05, method='ols')
+plt.title("PACF for Weighted Price", size=20)
+plt.show()
+     
+
+
+stats, p, lags, critical_values = kpss(series, 'ct')
+     
+<ipython-input-39-5d53772d20e5>:1: InterpolationWarning:
+
+The test statistic is outside of the range of p-values available in the
+look-up table. The actual p-value is smaller than the p-value returned.
+
+
+
+print(f'Test Statistics : {stats}')
+print(f'p-value : {p}')
+print(f'Critical Values : {critical_values}')
+
+if p < 0.05:
+    print('Series is not Stationary')
+else:
+    print('Series is Stationary')
+     
+Test Statistics : 0.6463360059696726
+p-value : 0.01
+Critical Values : {'10%': 0.119, '5%': 0.146, '2.5%': 0.176, '1%': 0.216}
+Series is not Stationary
+
+def adf_test(timeseries):
+    print ('Results of Dickey-Fuller Test:')
+    dftest = adfuller(timeseries, autolag='AIC')
+    print("dftest: ", dftest)
+    dfoutput = pd.Series(dftest[0:4], index=['Test Statistic','p-value','#Lags Used','Number of Observations Used'])
+    for key,value in dftest[4].items():
+       dfoutput['Critical Value (%s)'%key] = value
+
+    print (dfoutput)
+
+    if p > 0.05:
+        print('Series is not Stationary')
+    else:
+        print('Series is Stationary')
+     
+
+adf_test(series)
+     
+Results of Dickey-Fuller Test:
+dftest:  (6.189943678624063, 1.0, 29, 3349, {'1%': -3.432304111473485, '5%': -2.862403412310526, '10%': -2.56722961145352}, 48557.65804172438)
+Test Statistic                    6.189944
+p-value                           1.000000
+#Lags Used                       29.000000
+Number of Observations Used    3349.000000
+Critical Value (1%)              -3.432304
+Critical Value (5%)              -2.862403
+Critical Value (10%)             -2.567230
+dtype: float64
+Series is Stationary
+
+df = BTC_Price_daily.set_index("Timestamp")
+df.reset_index(drop=False, inplace=True)
+
+rolling_features = ["Open", "High", "Low", "Close","Volume_(BTC)"]
+window1 = 3
+window2 = 7
+window3 = 30
+
+# First convert our original df to a rolling df of 3d, 7d  and 30d
+df_rolled_3d = df[rolling_features].rolling(window=window1, min_periods=0)
+df_rolled_7d = df[rolling_features].rolling(window=window2, min_periods=0)
+df_rolled_30d = df[rolling_features].rolling(window=window3, min_periods=0)
+
+# dataframe.shift() function Shift index by desired number of periods. It takes a scalar parameter called the period,
+# which represents the number of shifts to be made over the desired axis. It defaults to 1 and
+# it is shifting values vertically along the axis 0 . NaN will be filled for missing values introduced as a result of the shifting.
+# Very helpful when dealing with time-series data.
+
+df_mean_3d = df_rolled_3d.mean().shift(1).reset_index()
+df_mean_7d = df_rolled_7d.mean().shift(1).reset_index()
+df_mean_30d = df_rolled_30d.mean().shift(1).reset_index()
+
+# Just print to see the structure of one of them
+df_mean_30d
+     
+index	Open	High	Low	Close	Volume_(BTC)
+0	0	NaN	NaN	NaN	NaN	NaN
+1	1	4.476415	4.478946	4.476415	4.478946	17.940426
+2	2	4.620996	4.622261	4.620996	4.622261	12.365533
+3	3	4.749513	4.750357	4.749513	4.750357	13.304813
+4	4	4.863768	4.864400	4.863768	4.864400	11.957870
+...	...	...	...	...	...	...
+3374	3374	53246.117049	53284.732343	53207.410161	53247.214779	3.837317
+3375	3375	53419.535306	53457.398134	53381.755430	53420.743065	3.714545
+3376	3376	53725.322111	53761.831591	53688.974543	53726.542964	3.574554
+3377	3377	54051.215359	54087.598046	54015.072612	54052.421612	3.627518
+3378	3378	54501.984831	54537.702732	54466.549805	54503.231684	3.551703
+3379 rows × 6 columns
+
+
+df_std_3d = df_rolled_3d.std().shift(1).reset_index()
+df_std_7d = df_rolled_7d.std().shift(1).reset_index()
+df_std_30d = df_rolled_30d.std().shift(1).reset_index()
+
+# Just print to see the structure of one of them
+df_std_30d
+     
+index	Open	High	Low	Close	Volume_(BTC)
+0	0	NaN	NaN	NaN	NaN	NaN
+1	1	NaN	NaN	NaN	NaN	NaN
+2	2	0.204468	0.202678	0.204468	0.202678	7.884089
+3	3	0.265431	0.264130	0.265431	0.264130	5.807423
+4	4	0.314937	0.313900	0.314937	0.313900	5.453543
+...	...	...	...	...	...	...
+3374	3374	4424.512839	4422.633794	4426.336478	4424.587239	1.227977
+3375	3375	4394.326440	4392.541182	4395.997089	4394.356574	1.239981
+3376	3376	4223.641753	4223.090719	4224.000160	4223.666478	1.251745
+3377	3377	4072.023486	4071.241792	4072.595029	4072.035724	1.222073
+3378	3378	3751.195090	3750.599384	3751.458921	3751.148035	1.228072
+3379 rows × 6 columns
+
+
+for feature in rolling_features:
+    df[f"{feature}_mean_lag{window1}"] = df_mean_3d[feature]
+    df[f"{feature}_mean_lag{window2}"] = df_mean_7d[feature]
+    df[f"{feature}_mean_lag{window3}"] = df_mean_30d[feature]
+
+    df[f"{feature}_std_lag{window1}"] = df_std_3d[feature]
+    df[f"{feature}_std_lag{window2}"] = df_std_7d[feature]
+    df[f"{feature}_std_lag{window3}"] = df_std_30d[feature]
+
+df.fillna(df.mean(), inplace=True)
+
+df.set_index("Timestamp", drop=False, inplace=True)
+df.head()
+     
+<ipython-input-45-b282c9642ea0>:10: FutureWarning:
+
+DataFrame.mean and DataFrame.median with numeric_only=None will include datetime64 and datetime64tz columns in a future version.
+
+Timestamp	Open	High	Low	Close	Volume_(BTC)	Volume_(Currency)	Weighted_Price	Open_mean_lag3	Open_mean_lag7	...	Close_mean_lag30	Close_std_lag3	Close_std_lag7	Close_std_lag30	Volume_(BTC)_mean_lag3	Volume_(BTC)_mean_lag7	Volume_(BTC)_mean_lag30	Volume_(BTC)_std_lag3	Volume_(BTC)_std_lag7	Volume_(BTC)_std_lag30
+Timestamp																					
+2011-12-31	2011-12-31	4.476415	4.478946	4.476415	4.478946	17.940426	79.495594	4.477370	4568.640649	4535.780516	...	4345.881445	112.744372	185.758045	417.825217	9.579974	9.586140	9.601214	3.444517	4.196693	5.179093
+2012-01-01	2012-01-01	4.765576	4.765576	4.765576	4.765576	6.790640	32.971105	4.765576	4.476415	4.476415	...	4.478946	112.744372	185.758045	417.825217	17.940426	17.940426	17.940426	3.444517	4.196693	5.179093
+2012-01-02	2012-01-02	5.006549	5.006549	5.006549	5.006549	15.183373	75.932706	5.006549	4.620996	4.620996	...	4.622261	0.202678	0.202678	0.202678	12.365533	12.365533	12.365533	7.884089	7.884089	7.884089
+2012-01-03	2012-01-03	5.206530	5.206530	5.206530	5.206530	7.917041	40.795994	5.206530	4.749513	4.749513	...	4.750357	0.264130	0.264130	0.264130	13.304813	13.304813	13.304813	5.807423	5.807423	5.807423
+2012-01-04	2012-01-04	5.202511	5.241699	5.202511	5.241699	13.659736	72.860096	5.216680	4.992885	4.863768	...	4.864400	0.220794	0.313900	0.313900	9.963685	11.957870	11.957870	4.555332	5.453543	5.453543
+5 rows × 38 columns
+
+
+df["month"] = df.Timestamp.dt.month
+df["week"] = df.Timestamp.dt.week
+df["day"] = df.Timestamp.dt.day
+df["day_of_week"] = df.Timestamp.dt.dayofweek
+df.head()
+
+     
+<ipython-input-46-34aa0099d32c>:2: FutureWarning:
+
+Series.dt.weekofyear and Series.dt.week have been deprecated. Please use Series.dt.isocalendar().week instead.
+
+Timestamp	Open	High	Low	Close	Volume_(BTC)	Volume_(Currency)	Weighted_Price	Open_mean_lag3	Open_mean_lag7	...	Volume_(BTC)_mean_lag3	Volume_(BTC)_mean_lag7	Volume_(BTC)_mean_lag30	Volume_(BTC)_std_lag3	Volume_(BTC)_std_lag7	Volume_(BTC)_std_lag30	month	week	day	day_of_week
+Timestamp																					
+2011-12-31	2011-12-31	4.476415	4.478946	4.476415	4.478946	17.940426	79.495594	4.477370	4568.640649	4535.780516	...	9.579974	9.586140	9.601214	3.444517	4.196693	5.179093	12	52	31	5
+2012-01-01	2012-01-01	4.765576	4.765576	4.765576	4.765576	6.790640	32.971105	4.765576	4.476415	4.476415	...	17.940426	17.940426	17.940426	3.444517	4.196693	5.179093	1	52	1	6
+2012-01-02	2012-01-02	5.006549	5.006549	5.006549	5.006549	15.183373	75.932706	5.006549	4.620996	4.620996	...	12.365533	12.365533	12.365533	7.884089	7.884089	7.884089	1	1	2	0
+2012-01-03	2012-01-03	5.206530	5.206530	5.206530	5.206530	7.917041	40.795994	5.206530	4.749513	4.749513	...	13.304813	13.304813	13.304813	5.807423	5.807423	5.807423	1	1	3	1
+2012-01-04	2012-01-04	5.202511	5.241699	5.202511	5.241699	13.659736	72.860096	5.216680	4.992885	4.863768	...	9.963685	11.957870	11.957870	4.555332	5.453543	5.453543	1	1	4	2
+5 rows × 42 columns
+
+
+df_train = df[df.Timestamp<"2020"]
+df_valid = df[df.Timestamp>="2020"]
+print('train shape:',df_train.shape)
+print('validation shape:',df_valid.shape)
+     
+train shape: (2923, 42)
+validation shape: (456, 42)
+
+import pmdarima as pm
+# here From df.columns,all the original 8 columns are removed i.e
+# 'Timestamp', 'Open', 'High', 'Low', 'Close', 'Volume_(BTC)', 'Volume_(Currency)', 'Weighted_Price',
+# newly created (engineered) columns
+
+exogenous_features = ['Open_mean_lag3',
+       'Open_mean_lag7', 'Open_mean_lag30', 'Open_std_lag3', 'Open_std_lag7',
+       'Open_std_lag30', 'High_mean_lag3', 'High_mean_lag7', 'High_mean_lag30',
+       'High_std_lag3', 'High_std_lag7', 'High_std_lag30', 'Low_mean_lag3',
+       'Low_mean_lag7', 'Low_mean_lag30', 'Low_std_lag3', 'Low_std_lag7',
+       'Low_std_lag30', 'Close_mean_lag3', 'Close_mean_lag7',
+       'Close_mean_lag30', 'Close_std_lag3', 'Close_std_lag7',
+       'Close_std_lag30', 'Volume_(BTC)_mean_lag3', 'Volume_(BTC)_mean_lag7',
+       'Volume_(BTC)_mean_lag30', 'Volume_(BTC)_std_lag3',
+       'Volume_(BTC)_std_lag7', 'Volume_(BTC)_std_lag30', 'month', 'week',
+       'day', 'day_of_week']
+
+# len(exogenous_features1) # 34
+     
+
+model = pm.auto_arima(df_train.Weighted_Price, exogenous=df_train[exogenous_features], trace=True, error_action="ignore", suppress_warnings=True)
+
+
+model.fit(df_train.Weighted_Price, exogenous=df_train[exogenous_features])
+
+forecast = model.predict(n_periods=len(df_valid), exogenous=df_valid[exogenous_features])
+
+df_valid["Forecast_ARIMAX"] = forecast
+     
+Performing stepwise search to minimize aic
+ ARIMA(2,1,2)(0,0,0)[0] intercept   : AIC=38681.246, Time=4.22 sec
+ ARIMA(0,1,0)(0,0,0)[0] intercept   : AIC=38822.318, Time=0.16 sec
+ ARIMA(1,1,0)(0,0,0)[0] intercept   : AIC=38712.337, Time=0.26 sec
+ ARIMA(0,1,1)(0,0,0)[0] intercept   : AIC=38716.835, Time=0.67 sec
+ ARIMA(0,1,0)(0,0,0)[0]             : AIC=38820.833, Time=0.11 sec
+ ARIMA(1,1,2)(0,0,0)[0] intercept   : AIC=38679.580, Time=3.47 sec
+ ARIMA(0,1,2)(0,0,0)[0] intercept   : AIC=38712.751, Time=0.55 sec
+ ARIMA(1,1,1)(0,0,0)[0] intercept   : AIC=38714.288, Time=0.34 sec
+ ARIMA(1,1,3)(0,0,0)[0] intercept   : AIC=38681.295, Time=4.00 sec
+ ARIMA(0,1,3)(0,0,0)[0] intercept   : AIC=38711.116, Time=0.72 sec
+ ARIMA(2,1,1)(0,0,0)[0] intercept   : AIC=38716.332, Time=0.75 sec
+ ARIMA(2,1,3)(0,0,0)[0] intercept   : AIC=38682.840, Time=8.97 sec
+ ARIMA(1,1,2)(0,0,0)[0]             : AIC=38677.845, Time=1.38 sec
+ ARIMA(0,1,2)(0,0,0)[0]             : AIC=38711.084, Time=0.26 sec
+ ARIMA(1,1,1)(0,0,0)[0]             : AIC=38712.635, Time=0.17 sec
+ ARIMA(2,1,2)(0,0,0)[0]             : AIC=38679.506, Time=1.45 sec
+ ARIMA(1,1,3)(0,0,0)[0]             : AIC=38679.570, Time=1.75 sec
+ ARIMA(0,1,1)(0,0,0)[0]             : AIC=38715.204, Time=0.15 sec
+ ARIMA(0,1,3)(0,0,0)[0]             : AIC=38709.477, Time=0.34 sec
+ ARIMA(2,1,1)(0,0,0)[0]             : AIC=38714.676, Time=0.33 sec
+ ARIMA(2,1,3)(0,0,0)[0]             : AIC=38681.168, Time=3.69 sec
+
+Best model:  ARIMA(1,1,2)(0,0,0)[0]          
+Total fit time: 33.811 seconds
+<ipython-input-49-a9dcd9056c61>:8: SettingWithCopyWarning:
+
+
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+
+
+df_valid[["Weighted_Price", "Forecast_ARIMAX"]].plot(figsize=(14, 7))
+     
+<Axes: xlabel='Timestamp'>
+
+
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+test_mae_a=np.sqrt(mean_squared_error(df_valid.Weighted_Price, df_valid.Forecast_ARIMAX))
+test_rmse_a=mean_absolute_error(df_valid.Weighted_Price, df_valid.Forecast_ARIMAX)
+
+print("RMSE of Auto ARIMAX:", test_rmse_a)
+
+print("\nMAE of Auto ARIMAX:", test_mae_a)
+     
+RMSE of Auto ARIMAX: 10733.36863799476
+
+MAE of Auto ARIMAX: 18100.140904413514
+
+# Calculate accuracy percentage of ARIMAX model using RMSE and MAE without function
+
+rmse = test_mae_a
+mae = test_rmse_a
+
+# Calculate the average of RMSE and MAE
+average_error = (rmse + mae) / 2
+
+# Calculate the accuracy percentage
+accuracy_percentage_a = 100 - (average_error / 1000)
+
+print("Accuracy percentage:", accuracy_percentage_a)
+     
+Accuracy percentage: 85.58324522879586
+
+model.plot_diagnostics()
+     
+
+
+
+!pip install prophet
+import prophet
+     
+Requirement already satisfied: prophet in /usr/local/lib/python3.10/dist-packages (1.1.5)
+Requirement already satisfied: cmdstanpy>=1.0.4 in /usr/local/lib/python3.10/dist-packages (from prophet) (1.2.1)
+Requirement already satisfied: numpy>=1.15.4 in /usr/local/lib/python3.10/dist-packages (from prophet) (1.25.2)
+Requirement already satisfied: matplotlib>=2.0.0 in /usr/local/lib/python3.10/dist-packages (from prophet) (3.7.1)
+Requirement already satisfied: pandas>=1.0.4 in /usr/local/lib/python3.10/dist-packages (from prophet) (1.5.3)
+Requirement already satisfied: holidays>=0.25 in /usr/local/lib/python3.10/dist-packages (from prophet) (0.42)
+Requirement already satisfied: tqdm>=4.36.1 in /usr/local/lib/python3.10/dist-packages (from prophet) (4.66.2)
+Requirement already satisfied: importlib-resources in /usr/local/lib/python3.10/dist-packages (from prophet) (6.1.1)
+Requirement already satisfied: stanio~=0.3.0 in /usr/local/lib/python3.10/dist-packages (from cmdstanpy>=1.0.4->prophet) (0.3.0)
+Requirement already satisfied: python-dateutil in /usr/local/lib/python3.10/dist-packages (from holidays>=0.25->prophet) (2.8.2)
+Requirement already satisfied: contourpy>=1.0.1 in /usr/local/lib/python3.10/dist-packages (from matplotlib>=2.0.0->prophet) (1.2.0)
+Requirement already satisfied: cycler>=0.10 in /usr/local/lib/python3.10/dist-packages (from matplotlib>=2.0.0->prophet) (0.12.1)
+Requirement already satisfied: fonttools>=4.22.0 in /usr/local/lib/python3.10/dist-packages (from matplotlib>=2.0.0->prophet) (4.48.1)
+Requirement already satisfied: kiwisolver>=1.0.1 in /usr/local/lib/python3.10/dist-packages (from matplotlib>=2.0.0->prophet) (1.4.5)
+Requirement already satisfied: packaging>=20.0 in /usr/local/lib/python3.10/dist-packages (from matplotlib>=2.0.0->prophet) (23.2)
+Requirement already satisfied: pillow>=6.2.0 in /usr/local/lib/python3.10/dist-packages (from matplotlib>=2.0.0->prophet) (9.4.0)
+Requirement already satisfied: pyparsing>=2.3.1 in /usr/local/lib/python3.10/dist-packages (from matplotlib>=2.0.0->prophet) (3.1.1)
+Requirement already satisfied: pytz>=2020.1 in /usr/local/lib/python3.10/dist-packages (from pandas>=1.0.4->prophet) (2023.4)
+Requirement already satisfied: six>=1.5 in /usr/local/lib/python3.10/dist-packages (from python-dateutil->holidays>=0.25->prophet) (1.16.0)
+
+# FB prophet
+from prophet import Prophet
+     
+
+# Resampling originial data to day level and forward fill the missing values
+daily_data = BTC_DF.resample("24H").mean() #daily resampling
+fill_missing(daily_data)
+
+     
+                Open      High       Low     Close  Volume_(BTC)  \
+Timestamp                                                          
+2011-12-31  4.476415  4.478946  4.476415  4.478946     17.940426   
+2012-01-01  4.765576  4.765576  4.765576  4.765576      6.790640   
+2012-01-02  5.006549  5.006549  5.006549  5.006549     15.183373   
+2012-01-03  5.206530  5.206530  5.206530  5.206530      7.917041   
+2012-01-04  5.202511  5.241699  5.202511  5.241699     13.659736   
+
+            Volume_(Currency)  Weighted_Price  
+Timestamp                                      
+2011-12-31          79.495594        4.477370  
+2012-01-01          32.971105        4.765576  
+2012-01-02          75.932706        5.006549  
+2012-01-03          40.795994        5.206530  
+2012-01-04          72.860096        5.216680  
+Open                 0
+High                 0
+Low                  0
+Close                0
+Volume_(BTC)         0
+Volume_(Currency)    0
+Weighted_Price       0
+dtype: int64
+
+# Renaming the column names according to Prophet's requirements
+
+daily_data_fb = daily_data.reset_index()[['Timestamp','Weighted_Price']].rename({'Timestamp':'ds','Weighted_Price':'y'}, axis=1)
+daily_data_fb.head()
+     
+ds	y
+0	2011-12-31	4.477370
+1	2012-01-01	4.765576
+2	2012-01-02	5.006549
+3	2012-01-03	5.206530
+4	2012-01-04	5.216680
+
+split_date = "2020-01-01"
+train_split = daily_data_fb['ds'] <= split_date
+test_split = daily_data_fb['ds'] > split_date
+
+train_fb = daily_data_fb[train_split]
+test_fb = daily_data_fb[test_split]
+print("train data shape :", train_fb.shape)
+print("test data shape :", test_fb.shape)
+     
+train data shape : (2924, 2)
+test data shape : (455, 2)
+
+model_fbprophet = Prophet()
+for feature in exogenous_features:
+    model_fbprophet.add_regressor(feature)
+
+model_fbprophet.fit(df_train[["Timestamp", "Weighted_Price"] + exogenous_features].rename(columns={"Timestamp": "ds", "Weighted_Price": "y"}))
+
+forecast = model_fbprophet.predict(df_valid[["Timestamp", "Weighted_Price"] + exogenous_features].rename(columns={"Timestamp": "ds"}))
+
+forecast.head()
+     
+INFO:prophet:Disabling daily seasonality. Run prophet with daily_seasonality=True to override this.
+DEBUG:cmdstanpy:input tempfile: /tmp/tmp5abjacsd/i7hoiiow.json
+DEBUG:cmdstanpy:input tempfile: /tmp/tmp5abjacsd/6yts6n17.json
+DEBUG:cmdstanpy:idx 0
+DEBUG:cmdstanpy:running CmdStan, num_threads: None
+DEBUG:cmdstanpy:CmdStan args: ['/usr/local/lib/python3.10/dist-packages/prophet/stan_model/prophet_model.bin', 'random', 'seed=60162', 'data', 'file=/tmp/tmp5abjacsd/i7hoiiow.json', 'init=/tmp/tmp5abjacsd/6yts6n17.json', 'output', 'file=/tmp/tmp5abjacsd/prophet_modeloq0dlgn6/prophet_model-20240217162217.csv', 'method=optimize', 'algorithm=lbfgs', 'iter=10000']
+16:22:17 - cmdstanpy - INFO - Chain [1] start processing
+INFO:cmdstanpy:Chain [1] start processing
+16:22:23 - cmdstanpy - INFO - Chain [1] done processing
+INFO:cmdstanpy:Chain [1] done processing
+ds	trend	yhat_lower	yhat_upper	trend_lower	trend_upper	Close_mean_lag3	Close_mean_lag3_lower	Close_mean_lag3_upper	Close_mean_lag30	...	weekly	weekly_lower	weekly_upper	yearly	yearly_lower	yearly_upper	multiplicative_terms	multiplicative_terms_lower	multiplicative_terms_upper	yhat
+0	2020-01-01	2694.444543	7084.658131	7703.647488	2694.444543	2694.444543	4764.721884	4764.721884	4764.721884	11.033413	...	0.518556	0.518556	0.518556	-57.684539	-57.684539	-57.684539	0.0	0.0	0.0	7409.183878
+1	2020-01-02	2694.526953	6999.482103	7642.581899	2694.526953	2694.526953	4714.637068	4714.637068	4714.637068	11.024548	...	-8.878020	-8.878020	-8.878020	-78.582593	-78.582593	-78.582593	0.0	0.0	0.0	7337.683387
+2	2020-01-03	2694.609364	6884.213074	7524.122266	2694.609364	2694.609364	4639.085016	4639.085016	4639.085016	11.005425	...	-8.294467	-8.294467	-8.294467	-98.679561	-98.679561	-98.679561	0.0	0.0	0.0	7205.658475
+3	2020-01-04	2694.691774	6924.077463	7570.458373	2694.691774	2694.691774	4645.408795	4645.408795	4645.408795	11.000894	...	11.370223	11.370223	11.370223	-117.830886	-117.830886	-117.830886	0.0	0.0	0.0	7253.261151
+4	2020-01-05	2694.774184	6933.981674	7569.143632	2694.774184	2694.774184	4687.674490	4687.674490	4687.674490	11.000395	...	2.008058	2.008058	2.008058	-135.909033	-135.909033	-135.909033	0.0	0.0	0.0	7240.049390
+5 rows × 124 columns
+
+
+df_valid["Forecast_Prophet"] = forecast.yhat.values
+     
+<ipython-input-60-fe9be0424092>:1: SettingWithCopyWarning:
+
+
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+
+
+# Plot Our Predictions
+fig1 = model_fbprophet.plot(forecast)
+     
+
+
+model_fbprophet.plot_components(forecast)
+     
+
+
+
+# Plotting changepoints
+from prophet.plot import add_changepoints_to_plot
+fig = model_fbprophet.plot(forecast)
+a = add_changepoints_to_plot(fig.gca(), model_fbprophet, forecast)
+     
+
+
+df_valid[["Weighted_Price", "Forecast_Prophet"]].plot(figsize=(14, 7))
+     
+<Axes: xlabel='Timestamp'>
+
+
+test_mae_prophet = mean_absolute_error(df_valid['Weighted_Price'], df_valid['Forecast_Prophet'])
+
+test_rmse_prophet = np.sqrt(mean_squared_error(df_valid['Weighted_Price'], df_valid['Forecast_Prophet']))
+
+print(f"Prophet's Test MAE : {test_mae_prophet}")
+print(f"Prophet's Test RMSE : {test_rmse_prophet}")
+     
+Prophet's Test MAE : 684.8078163960702
+Prophet's Test RMSE : 1300.2636596655868
+
+ # Calculate accuracy percentage of FB prophet model using RMSE and MAE without function
+
+rmse = test_mae_prophet
+mae = test_rmse_prophet
+
+# Calculate the average of RMSE and MAE
+average_error = (rmse + mae) / 2
+
+# Calculate the accuracy percentage
+accuracy_percentage_fb= 100 - (average_error / 1000)
+
+print("Accuracy percentage:", accuracy_percentage_fb)
+     
+Accuracy percentage: 99.00746426196918
+
+# XGBOOST
+from sklearn import ensemble
+from sklearn import metrics
+from sklearn.model_selection import RandomizedSearchCV
+import xgboost as xgb
+from xgboost import plot_importance, plot_tree
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+plt.style.use('fivethirtyeight')
+
+from datetime import datetime
+     
+
+X_train, y_train = df_train[exogenous_features], df_train.Weighted_Price
+X_test, y_test = df_valid[exogenous_features], df_valid.Weighted_Price
+     
+
+reg = xgb.XGBRegressor()
+     
+
+## Hyper Parameter Optimization Grid
+
+params={
+ "learning_rate"    : [0.05, 0.10, 0.15, 0.20, 0.25, 0.30],
+ "max_depth"        : [1, 3, 4, 5, 6, 7],
+ "n_estimators"     : [int(x) for x in np.linspace(start=100, stop=2000, num=10)],
+ "min_child_weight" : [int(x) for x in np.arange(3, 15, 1)],
+ "gamma"            : [ 0.0, 0.1, 0.2 , 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1],
+ "subsample"        : [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1],
+ "colsample_bytree" : [0.5, 0.6, 0.7, 0.8, 0.9, 1],
+ "colsample_bylevel": [0.5, 0.6, 0.7, 0.8, 0.9, 1],
+
+}
+
+     
+
+model  = RandomizedSearchCV(
+                reg,
+                param_distributions=params,
+                n_iter=10,
+                n_jobs=-1,
+                cv=5,
+                verbose=3,
+)
+
+     
+
+model.fit(X_train, y_train)
+
+     
+Fitting 5 folds for each of 10 candidates, totalling 50 fits
+RandomizedSearchCV(cv=5,
+                   estimator=XGBRegressor(base_score=None, booster=None,
+                                          callbacks=None,
+                                          colsample_bylevel=None,
+                                          colsample_bynode=None,
+                                          colsample_bytree=None, device=None,
+                                          early_stopping_rounds=None,
+                                          enable_categorical=False,
+                                          eval_metric=None, feature_types=None,
+                                          gamma=None, grow_policy=None,
+                                          importance_type=None,
+                                          interaction_constraints=None,
+                                          learning_rate=...
+                                                              0.8, 0.9, 1],
+                                        'colsample_bytree': [0.5, 0.6, 0.7, 0.8,
+                                                             0.9, 1],
+                                        'gamma': [0.0, 0.1, 0.2, 0.3, 0.4, 0.5,
+                                                  0.6, 0.7, 0.8, 0.9, 1],
+                                        'learning_rate': [0.05, 0.1, 0.15, 0.2,
+                                                          0.25, 0.3],
+                                        'max_depth': [1, 3, 4, 5, 6, 7],
+                                        'min_child_weight': [3, 4, 5, 6, 7, 8,
+                                                             9, 10, 11, 12, 13,
+                                                             14],
+                                        'n_estimators': [100, 311, 522, 733,
+                                                         944, 1155, 1366, 1577,
+                                                         1788, 2000],
+                                        'subsample': [0.1, 0.2, 0.3, 0.4, 0.5,
+                                                      0.6, 0.7, 0.8, 0.9, 1]},
+                   verbose=3)
+In a Jupyter environment, please rerun this cell to show the HTML representation or trust the notebook.
+On GitHub, the HTML representation is unable to render, please try loading this page with nbviewer.org.
+
+print(f"Model Best Score : {model.best_score_}")
+print(f"Model Best Parameters : {model.best_estimator_.get_params()}")
+     
+Model Best Score : -3.421389685126924
+Model Best Parameters : {'objective': 'reg:squarederror', 'base_score': None, 'booster': None, 'callbacks': None, 'colsample_bylevel': 0.7, 'colsample_bynode': None, 'colsample_bytree': 0.8, 'device': None, 'early_stopping_rounds': None, 'enable_categorical': False, 'eval_metric': None, 'feature_types': None, 'gamma': 0.9, 'grow_policy': None, 'importance_type': None, 'interaction_constraints': None, 'learning_rate': 0.25, 'max_bin': None, 'max_cat_threshold': None, 'max_cat_to_onehot': None, 'max_delta_step': None, 'max_depth': 7, 'max_leaves': None, 'min_child_weight': 3, 'missing': nan, 'monotone_constraints': None, 'multi_strategy': None, 'n_estimators': 311, 'n_jobs': None, 'num_parallel_tree': None, 'random_state': None, 'reg_alpha': None, 'reg_lambda': None, 'sampling_method': None, 'scale_pos_weight': None, 'subsample': 0.8, 'tree_method': None, 'validate_parameters': None, 'verbosity': None}
+
+model.best_estimator_
+     
+XGBRegressor(base_score=None, booster=None, callbacks=None,
+             colsample_bylevel=0.7, colsample_bynode=None, colsample_bytree=0.8,
+             device=None, early_stopping_rounds=None, enable_categorical=False,
+             eval_metric=None, feature_types=None, gamma=0.9, grow_policy=None,
+             importance_type=None, interaction_constraints=None,
+             learning_rate=0.25, max_bin=None, max_cat_threshold=None,
+             max_cat_to_onehot=None, max_delta_step=None, max_depth=7,
+             max_leaves=None, min_child_weight=3, missing=nan,
+             monotone_constraints=None, multi_strategy=None, n_estimators=311,
+             n_jobs=None, num_parallel_tree=None, random_state=None, ...)
+In a Jupyter environment, please rerun this cell to show the HTML representation or trust the notebook.
+On GitHub, the HTML representation is unable to render, please try loading this page with nbviewer.org.
+
+df_train['Predicted_Weighted_Price'] = model.predict(X_train)
+df_train[['Weighted_Price','Predicted_Weighted_Price']].plot(figsize=(15, 5))
+     
+<ipython-input-75-7f1e3e53e73a>:1: SettingWithCopyWarning:
+
+
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+
+<Axes: xlabel='Timestamp'>
+
+
+df_valid['Forecast_XGBoost'] = model.predict(X_test)
+overall_data = pd.concat([df_train, df_valid], sort=False)
+overall_data[['Weighted_Price','Forecast_XGBoost']].plot(figsize=(15, 5))
+     
+<ipython-input-76-cb95ef1546ad>:1: SettingWithCopyWarning:
+
+
+A value is trying to be set on a copy of a slice from a DataFrame.
+Try using .loc[row_indexer,col_indexer] = value instead
+
+See the caveats in the documentation: https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
+
+<Axes: xlabel='Timestamp'>
+
+
+df_valid[['Weighted_Price','Forecast_XGBoost']].plot(figsize=(15, 5))
+     
+<Axes: xlabel='Timestamp'>
+
+
+from sklearn.metrics import mean_absolute_error, mean_squared_error,r2_score
+     
+
+train_mae_xgboost = mean_absolute_error(df_train['Weighted_Price'], df_train['Predicted_Weighted_Price'])
+train_rmse_xgboost = np.sqrt(mean_squared_error(df_train['Weighted_Price'], df_train['Predicted_Weighted_Price']))
+train_r_square_xgboost = r2_score(df_train['Weighted_Price'], df_train['Predicted_Weighted_Price'])
+
+print(f"train MAE : {train_mae_xgboost}")
+print(f"train RMSE : {train_rmse_xgboost}")
+print(f"train R2 : {train_r_square_xgboost}")
+
+     
+train MAE : 0.5258242081631009
+train RMSE : 0.7041845789871244
+train R2 : 0.999999961596498
+
+test_mae_xgboost = mean_absolute_error(df_valid['Weighted_Price'], df_valid['Forecast_XGBoost'])
+test_rmse_xgboost = np.sqrt(mean_squared_error(df_valid['Weighted_Price'], df_valid['Forecast_XGBoost']))
+test_r2_xgboost = r2_score(df_valid['Weighted_Price'], df_valid['Forecast_XGBoost'])
+
+print(f"test MAE XGBOOST : {test_mae_xgboost}")
+print(f"test RMSE XGBOOST : {test_rmse_xgboost}")
+print(f"test R2 XGBOOST : {test_r2_xgboost}")
+     
+test MAE XGBOOST : 6401.723923718673
+test RMSE XGBOOST : 13417.929265903575
+test R2 XGBOOST : 0.16284231673153127
+
+# Calculate accuracy percentage of xgboost model using RMSE and MAE without function
+
+rmse = test_rmse_xgboost
+mae = test_mae_xgboost
+r2= test_r2_xgboost
+# Calculate the average of RMSE,MAE and R2
+average_error = (rmse + mae + (1 - r2)) / 3
+
+# Calculate the accuracy percentage
+accuracy_percentage_XG= 100 - (average_error / 1000)
+
+print("Accuracy percentage:", accuracy_percentage_XG)
+     
+Accuracy percentage: 93.3931698842315
+
+df_valid[["Weighted_Price", "Forecast_ARIMAX", "Forecast_Prophet", "Forecast_XGBoost"]].plot(figsize=(14,7))
+     
+<Axes: xlabel='Timestamp'>
+
+
+arimax_rmse = np.sqrt(mean_squared_error(df_valid['Weighted_Price'], df_valid['Forecast_ARIMAX']))
+fbp_rmse = np.sqrt(mean_squared_error(df_valid['Weighted_Price'], df_valid['Forecast_Prophet']))
+xgb_rmse = np.sqrt(mean_squared_error(df_valid['Weighted_Price'], df_valid['Forecast_XGBoost']))
+
+# MAE
+arimax_mae = mean_absolute_error(df_valid['Weighted_Price'], df_valid['Forecast_ARIMAX'])
+fbp_mae = mean_absolute_error(df_valid['Weighted_Price'], df_valid['Forecast_Prophet'])
+xgb_mae = mean_absolute_error(df_valid['Weighted_Price'], df_valid['Forecast_XGBoost'])
+print("ARIMAX RMSE :", arimax_rmse)
+print("FB Prophet RMSE :", fbp_rmse)
+print("XGBoost RMSE :", xgb_rmse)
+print("\nARIMAX MAE :", arimax_mae)
+print("FB Prophet MAE :", fbp_mae)
+print("XGBoost MAE :", xgb_mae)
+     
+ARIMAX RMSE : 18100.140904413514
+FB Prophet RMSE : 1300.2636596655868
+XGBoost RMSE : 13417.929265903575
+
+ARIMAX MAE : 10733.36863799476
+FB Prophet MAE : 684.8078163960702
+XGBoost MAE : 6401.723923718673
+
+# LSTM
+price_series = BTC_Price_daily.reset_index().Weighted_Price.values
+price_series
+     
+array([4.47737025e+00, 4.76557639e+00, 5.00654859e+00, ...,
+       5.69103655e+04, 5.83460235e+04, 5.87643494e+04])
+
+# Lets check what was the split of earlier train and test dataset
+df_train.shape # (2923, 43)
+
+     
+(2923, 43)
+
+train_data, test_data = price_series[0:2923], price_series[2923:]
+     
+
+from sklearn.preprocessing import MinMaxScaler
+scaler = MinMaxScaler(feature_range = (0, 1))
+train_data = scaler.fit_transform(train_data.reshape(-1,1))
+test_data = scaler.transform(test_data.reshape(-1,1))
+     
+
+train_data.shape, test_data.shape
+     
+((2923, 1), (456, 1))
+
+def get_window_ds_list_for_lstm(series, time_step):
+    # Here, basically for each window, all data upto the last but one data-point
+    # will be appended to as X variable and then
+    # the last data-point of that window will be the Y variable (i.e. target)
+    dataX, dataY = [], []
+    for i in range(len(series)- time_step-1):
+        a = series[i : (i+time_step), 0]
+        dataX.append(a)
+        b = series[i + time_step, 0]
+        dataY.append(b)
+
+    return np.array(dataX), np.array(dataY)
+     
+
+X_train, y_train = get_window_ds_list_for_lstm(train_data, time_step=100)
+X_test, y_test = get_window_ds_list_for_lstm(test_data, time_step=100)
+X_train.shape, y_train.shape, X_test.shape, y_test.shape
+     
+((2822, 100), (2822,), (355, 100), (355,))
+
+#reshape inputs to be [samples, timesteps, features] which is requred for LSTM
+X_train = X_train.reshape(X_train.shape[0], X_train.shape[1], 1)
+X_test = X_test.reshape(X_test.shape[0], X_test.shape[1], 1)
+print(X_train.shape)
+print(X_test.shape)
+     
+(2822, 100, 1)
+(355, 100, 1)
+
+print(y_train.shape)
+print(y_test.shape)
+     
+(2822,)
+(355,)
+
+#Create Stacked LSTM Model
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import LSTM
+from tensorflow.keras.layers import Dropout
+     
+
+# Initialising the LSTM
+regressor = Sequential()
+
+# Adding the first LSTM layer and some Dropout regularisation
+regressor.add(LSTM(units = 50, return_sequences = True, input_shape = (X_train.shape[1], 1)))
+regressor.add(Dropout(0.2))
+
+# Adding a second LSTM layer and some Dropout regularisation
+regressor.add(LSTM(units = 50, return_sequences = True))
+regressor.add(Dropout(0.2))
+
+# Adding a third LSTM layer and some Dropout regularisation
+regressor.add(LSTM(units = 50, return_sequences = True))
+regressor.add(Dropout(0.2))
+
+# Adding a fourth LSTM layer and some Dropout regularisation
+regressor.add(LSTM(units = 50))
+regressor.add(Dropout(0.2))
+
+# Adding the output layer
+regressor.add(Dense(units = 1))
+
+# Compiling the RNN
+regressor.compile(optimizer = 'adam', loss = 'mean_squared_error')
+     
+
+regressor.summary()
+     
+Model: "sequential"
+_________________________________________________________________
+ Layer (type)                Output Shape              Param #   
+=================================================================
+ lstm (LSTM)                 (None, 100, 50)           10400     
+                                                                 
+ dropout (Dropout)           (None, 100, 50)           0         
+                                                                 
+ lstm_1 (LSTM)               (None, 100, 50)           20200     
+                                                                 
+ dropout_1 (Dropout)         (None, 100, 50)           0         
+                                                                 
+ lstm_2 (LSTM)               (None, 100, 50)           20200     
+                                                                 
+ dropout_2 (Dropout)         (None, 100, 50)           0         
+                                                                 
+ lstm_3 (LSTM)               (None, 50)                20200     
+                                                                 
+ dropout_3 (Dropout)         (None, 50)                0         
+                                                                 
+ dense (Dense)               (None, 1)                 51        
+                                                                 
+=================================================================
+Total params: 71051 (277.54 KB)
+Trainable params: 71051 (277.54 KB)
+Non-trainable params: 0 (0.00 Byte)
+_________________________________________________________________
+
+# Fitting the RNN to the Training set
+history = regressor.fit(X_train, y_train, validation_split=0.1, epochs = 50, batch_size = 32, verbose=1, shuffle=False)
+
+     
+Epoch 1/50
+80/80 [==============================] - 28s 232ms/step - loss: 0.0051 - val_loss: 0.0492
+Epoch 2/50
+80/80 [==============================] - 17s 213ms/step - loss: 0.0190 - val_loss: 0.0549
+Epoch 3/50
+80/80 [==============================] - 20s 245ms/step - loss: 0.0181 - val_loss: 0.0098
+Epoch 4/50
+80/80 [==============================] - 17s 210ms/step - loss: 0.0234 - val_loss: 0.0185
+Epoch 5/50
+80/80 [==============================] - 17s 210ms/step - loss: 0.0163 - val_loss: 0.0031
+Epoch 6/50
+80/80 [==============================] - 17s 215ms/step - loss: 0.0059 - val_loss: 0.0088
+Epoch 7/50
+80/80 [==============================] - 18s 229ms/step - loss: 0.0052 - val_loss: 0.0047
+Epoch 8/50
+80/80 [==============================] - 17s 210ms/step - loss: 0.0045 - val_loss: 0.0029
+Epoch 9/50
+80/80 [==============================] - 17s 212ms/step - loss: 0.0036 - val_loss: 0.0075
+Epoch 10/50
+80/80 [==============================] - 18s 228ms/step - loss: 0.0065 - val_loss: 0.0376
+Epoch 11/50
+80/80 [==============================] - 17s 212ms/step - loss: 0.0162 - val_loss: 0.0022
+Epoch 12/50
+80/80 [==============================] - 18s 231ms/step - loss: 0.0047 - val_loss: 0.0023
+Epoch 13/50
+80/80 [==============================] - 17s 213ms/step - loss: 0.0025 - val_loss: 0.0023
+Epoch 14/50
+80/80 [==============================] - 18s 225ms/step - loss: 0.0022 - val_loss: 0.0029
+Epoch 15/50
+80/80 [==============================] - 17s 211ms/step - loss: 0.0029 - val_loss: 0.0017
+Epoch 16/50
+80/80 [==============================] - 17s 213ms/step - loss: 0.0021 - val_loss: 0.0020
+Epoch 17/50
+80/80 [==============================] - 19s 233ms/step - loss: 0.0021 - val_loss: 0.0021
+Epoch 18/50
+80/80 [==============================] - 17s 210ms/step - loss: 0.0021 - val_loss: 0.0022
+Epoch 19/50
+80/80 [==============================] - 17s 211ms/step - loss: 0.0019 - val_loss: 0.0017
+Epoch 20/50
+80/80 [==============================] - 25s 313ms/step - loss: 0.0020 - val_loss: 0.0023
+Epoch 21/50
+80/80 [==============================] - 17s 211ms/step - loss: 0.0023 - val_loss: 0.0024
+Epoch 22/50
+80/80 [==============================] - 17s 211ms/step - loss: 0.0019 - val_loss: 0.0015
+Epoch 23/50
+80/80 [==============================] - 18s 228ms/step - loss: 0.0019 - val_loss: 0.0015
+Epoch 24/50
+80/80 [==============================] - 17s 211ms/step - loss: 0.0019 - val_loss: 0.0017
+Epoch 25/50
+80/80 [==============================] - 17s 210ms/step - loss: 0.0019 - val_loss: 0.0022
+Epoch 26/50
+80/80 [==============================] - 17s 215ms/step - loss: 0.0020 - val_loss: 0.0038
+Epoch 27/50
+80/80 [==============================] - 18s 221ms/step - loss: 0.0022 - val_loss: 0.0033
+Epoch 28/50
+80/80 [==============================] - 17s 210ms/step - loss: 0.0022 - val_loss: 0.0031
+Epoch 29/50
+80/80 [==============================] - 19s 238ms/step - loss: 0.0024 - val_loss: 0.0016
+Epoch 30/50
+80/80 [==============================] - 18s 218ms/step - loss: 0.0021 - val_loss: 0.0012
+Epoch 31/50
+80/80 [==============================] - 17s 211ms/step - loss: 0.0018 - val_loss: 0.0013
+Epoch 32/50
+80/80 [==============================] - 17s 210ms/step - loss: 0.0019 - val_loss: 0.0034
+Epoch 33/50
+80/80 [==============================] - 18s 227ms/step - loss: 0.0020 - val_loss: 0.0022
+Epoch 34/50
+80/80 [==============================] - 17s 210ms/step - loss: 0.0019 - val_loss: 0.0021
+Epoch 35/50
+80/80 [==============================] - 17s 209ms/step - loss: 0.0021 - val_loss: 0.0029
+Epoch 36/50
+80/80 [==============================] - 18s 225ms/step - loss: 0.0021 - val_loss: 0.0022
+Epoch 37/50
+80/80 [==============================] - 18s 229ms/step - loss: 0.0020 - val_loss: 0.0017
+Epoch 38/50
+80/80 [==============================] - 17s 208ms/step - loss: 0.0019 - val_loss: 0.0014
+Epoch 39/50
+80/80 [==============================] - 17s 215ms/step - loss: 0.0018 - val_loss: 0.0012
+Epoch 40/50
+80/80 [==============================] - 18s 221ms/step - loss: 0.0018 - val_loss: 0.0013
+Epoch 41/50
+80/80 [==============================] - 17s 209ms/step - loss: 0.0018 - val_loss: 0.0034
+Epoch 42/50
+80/80 [==============================] - 17s 210ms/step - loss: 0.0018 - val_loss: 0.0033
+Epoch 43/50
+80/80 [==============================] - 18s 228ms/step - loss: 0.0020 - val_loss: 0.0038
+Epoch 44/50
+80/80 [==============================] - 17s 211ms/step - loss: 0.0020 - val_loss: 0.0035
+Epoch 45/50
+80/80 [==============================] - 17s 212ms/step - loss: 0.0018 - val_loss: 0.0015
+Epoch 46/50
+80/80 [==============================] - 20s 245ms/step - loss: 0.0016 - val_loss: 0.0019
+Epoch 47/50
+80/80 [==============================] - 17s 212ms/step - loss: 0.0018 - val_loss: 0.0030
+Epoch 48/50
+80/80 [==============================] - 17s 212ms/step - loss: 0.0020 - val_loss: 0.0033
+Epoch 49/50
+80/80 [==============================] - 18s 223ms/step - loss: 0.0019 - val_loss: 0.0038
+Epoch 50/50
+80/80 [==============================] - 17s 217ms/step - loss: 0.0020 - val_loss: 0.0043
+
+plt.figure(figsize=(16,7))
+plt.plot(history.history["loss"], label= "train loss")
+plt.plot(history.history["val_loss"], label= "validation loss")
+plt.legend()
+
+     
+<matplotlib.legend.Legend at 0x7f416ed5f070>
+
+
+#Lets do the prediction and performance checking
+
+train_predict = regressor.predict(X_train)
+test_predict = regressor.predict(X_test)
+     
+89/89 [==============================] - 4s 29ms/step
+12/12 [==============================] - 0s 28ms/step
+
+#transformation to original form
+
+y_train_inv = scaler.inverse_transform(y_train.reshape(-1, 1))
+y_test_inv = scaler.inverse_transform(y_test.reshape(-1, 1))
+
+train_predict_inv = scaler.inverse_transform(train_predict)
+test_predict_inv = scaler.inverse_transform(test_predict)
+     
+
+plt.figure(figsize=(16,7))
+plt.plot(y_train_inv.flatten(), marker='.', label="Actual")
+plt.plot(train_predict_inv.flatten(), 'r', marker='.', label="Predicted")
+plt.legend()
+     
+<matplotlib.legend.Legend at 0x7f416d717400>
+
+
+plt.figure(figsize=(16,7))
+plt.plot(y_test_inv.flatten(), marker='.', label="Actual")
+plt.plot(test_predict_inv.flatten(), 'r', marker='.', label="Predicted")
+plt.legend()
+     
+<matplotlib.legend.Legend at 0x7d9eab037220>
+
+
+train_RMSE_inverse = np.sqrt(mean_squared_error(y_train_inv, train_predict_inv))
+test_RMSE_inverse = np.sqrt(mean_squared_error(y_test_inv, test_predict_inv))
+
+train_MAE_inverse = mean_squared_error(y_train_inv, train_predict_inv )
+test_MAE_inverse = mean_squared_error(y_test_inv, test_predict_inv )
+
+
+print(f"Train RMSE Inverse: {train_RMSE_inverse}")
+print(f"Train MAE Inverse: {train_MAE_inverse}")
+
+print(f"Test RMSE Inverse: {test_RMSE_inverse}")
+print(f"Test MAE Inverse: {test_MAE_inverse}")
+
+     
+Train RMSE Inverse: 947.9578198716447
+Train MAE Inverse: 898624.0282558016
+Test RMSE Inverse: 10539.389860456411
+Test MAE Inverse: 111078738.6306914
+
+ # Calculate accuracy percentage of LSTM model using RMSE and MAE without function
+
+rmse = 1/train_RMSE_inverse
+mae = 1/train_MAE_inverse
+
+# Calculate the average of RMSE and MAE
+average_error = (rmse + mae) / 2
+
+# Calculate the accuracy percentage
+accuracy_percentage_LSTM = 100 - (average_error / 1000)
+
+print("Accuracy percentage:", accuracy_percentage_LSTM)
+     
+Accuracy percentage: 99.99999947199396
+
+print("ARIMAX Accuracy:", accuracy_percentage_a)
+print("FB Prophet Accuracy:", accuracy_percentage_fb)
+print("XGBoost Accuracy:", accuracy_percentage_XG)
+print("LSTM Accuracy:", accuracy_percentage_LSTM)
+
+     
+ARIMAX Accuracy: 85.58324522879586
+FB Prophet Accuracy: 99.00746426196918
+XGBoost Accuracy: 93.59067167311873
+LSTM Accuracy: 99.99999947199396
+
+import plotly.express as px
+
+# Create a list of the model names and their accuracy scores
+model_names = ["ARIMAX", "FB Prophet", "XGBoost", "LSTM"]
+accuracy_scores = [85.58324522879586, 99.00800919233757, 93.4295175766228, 99.9999995103351]
+
+# Create a Pandas DataFrame from the model names and accuracy scores
+df = pd.DataFrame({'model_name': model_names, 'accuracy_score': accuracy_scores})
+
+# Create a Plotly bar chart, passing a list of colors to the 'color' argument
+fig = px.bar(df, x='model_name', y='accuracy_score', color=['blue', 'red', 'green', 'voilet'])
+
+# Show the plot
+fig.show()
+     
+
+# Ensure that the lengths of the arrays are the same
+min_length = min(len(df_valid['Forecast_Prophet']), len(test_predict_inv.flatten()))
+
+# Combine predictions from FB Prophet and LSTM
+hybrid_predictions = (df_valid['Forecast_Prophet'][:min_length] + test_predict_inv[:min_length].flatten()) / 2
+
+# Plot the predictions from each model and the hybrid model
+plt.figure(figsize=(16, 7))
+plt.plot(df_valid.index[:min_length], df_valid['Weighted_Price'][:min_length], label='Actual', marker='.')
+plt.plot(df_valid.index[:min_length], df_valid['Forecast_Prophet'][:min_length], label='FB Prophet', marker='.')
+plt.plot(df_valid.index[:min_length], test_predict_inv[:min_length].flatten(), label='LSTM', marker='.')
+plt.plot(df_valid.index[:min_length], hybrid_predictions, label='Hybrid Model', marker='.')
+plt.legend()
+plt.title('Bitcoin Price Prediction Comparison (LSTM + FB Prophet)')
+plt.show()
+
+# Evaluate the performance of the hybrid model
+hybrid_rmse = np.sqrt(mean_squared_error(df_valid['Weighted_Price'][:min_length], hybrid_predictions))
+hybrid_mae = mean_absolute_error(df_valid['Weighted_Price'][:min_length], hybrid_predictions)
+
+print(f"Hybrid Model RMSE: {hybrid_rmse}")
+print(f"Hybrid Model MAE: {hybrid_mae}")
+
+     
+
+Hybrid Model RMSE: 2841.179180625783
+Hybrid Model MAE: 2002.194069928974
+
+# Ensure that the lengths of the arrays are the same
+min_length = min(len(df_valid['Forecast_ARIMAX']), len(df_valid['Forecast_XGBoost']), len(test_predict_inv.flatten()))
+
+# Combine predictions from ARIMAX, XGBoost, FB Prophet, and LSTM
+hybrid_predictions = (df_valid['Forecast_ARIMAX'][:min_length] + df_valid['Forecast_XGBoost'][:min_length]) / 2
+
+# Plot the predictions from each model and the hybrid model
+plt.figure(figsize=(16, 7))
+plt.plot(df_valid.index[:min_length], df_valid['Weighted_Price'][:min_length], label='Actual', marker='.')
+plt.plot(df_valid.index[:min_length], df_valid['Forecast_ARIMAX'][:min_length], label='ARIMAX', marker='.')
+plt.plot(df_valid.index[:min_length], df_valid['Forecast_XGBoost'][:min_length], label='XGBoost', marker='.')
+plt.plot(df_valid.index[:min_length], hybrid_predictions, label='Hybrid Model', marker='.')
+plt.legend()
+plt.title('Bitcoin Price Prediction Comparison (ARIMAX + XGBoost)')
+plt.show()
+
+# Evaluate the performance of the hybrid model
+hybrid_rmse = np.sqrt(mean_squared_error(df_valid['Weighted_Price'][:min_length], hybrid_predictions))
+hybrid_mae = mean_absolute_error(df_valid['Weighted_Price'][:min_length], hybrid_predictions)
+
+print(f"Hybrid Model RMSE: {hybrid_rmse}")
+print(f"Hybrid Model MAE: {hybrid_mae}")
+
+     
+
+Hybrid Model RMSE: 3098.179676497022
+Hybrid Model MAE: 2168.0906551600137
+
+# Ensure that the lengths of the arrays are the same
+min_length = min(len(df_valid['Forecast_XGBoost']), len(df_valid['Forecast_Prophet']), len(test_predict_inv.flatten()))
+
+# Combine predictions from XGBoost, FB Prophet, and LSTM
+hybrid_predictions = (df_valid['Forecast_XGBoost'][:min_length] + df_valid['Forecast_Prophet'][:min_length]) / 2
+
+# Plot the predictions from each model and the hybrid model
+plt.figure(figsize=(16, 7))
+plt.plot(df_valid.index[:min_length], df_valid['Weighted_Price'][:min_length], label='Actual', marker='.')
+plt.plot(df_valid.index[:min_length], df_valid['Forecast_XGBoost'][:min_length], label='XGBoost', marker='.')
+plt.plot(df_valid.index[:min_length], df_valid['Forecast_Prophet'][:min_length], label='FB Prophet', marker='.')
+plt.plot(df_valid.index[:min_length], hybrid_predictions, label='Hybrid Model', marker='.')
+plt.legend()
+plt.title('Bitcoin Price Prediction Comparison (XGBoost + FB Prophet)')
+plt.show()
+
+# Evaluate the performance of the hybrid model
+hybrid_rmse = np.sqrt(mean_squared_error(df_valid['Weighted_Price'][:min_length], hybrid_predictions))
+hybrid_mae = mean_absolute_error(df_valid['Weighted_Price'][:min_length], hybrid_predictions)
+
+print(f"Hybrid Model RMSE: {hybrid_rmse}")
+print(f"Hybrid Model MAE: {hybrid_mae}")
+
+     
+
+Hybrid Model RMSE: 886.9998214684977
+Hybrid Model MAE: 523.977346848975
+
+# Calculate the average of RMSE and MAE
+average_error = (hybrid_rmse + hybrid_mae) / 2
+
+# Calculate the accuracy percentage
+accuracy_percentage_LSTM = 100 - (average_error / 1000)
+
+print("Accuracy percentage:", accuracy_percentage_LSTM)
+     
+Accuracy percentage: 99.29451141584127
+
+# Ensure that the lengths of the arrays are the same
+min_length = min(len(df_valid['Forecast_ARIMAX']), len(df_valid['Forecast_Prophet']), len(df_valid['Forecast_XGBoost']), len(test_predict_inv.flatten()))
+
+# Combine predictions from ARIMAX, FB Prophet, XGBoost, and LSTM
+hybrid_predictions = (df_valid['Forecast_ARIMAX'][:min_length] + df_valid['Forecast_Prophet'][:min_length] + df_valid['Forecast_XGBoost'][:min_length] + test_predict_inv[:min_length].flatten()) / 4
+
+# Plot the predictions from each model and the hybrid model
+plt.figure(figsize=(16, 7))
+plt.plot(df_valid.index[:min_length], df_valid['Weighted_Price'][:min_length], label='Actual', marker='.')
+plt.plot(df_valid.index[:min_length], df_valid['Forecast_ARIMAX'][:min_length], label='ARIMAX', marker='.')
+plt.plot(df_valid.index[:min_length], df_valid['Forecast_Prophet'][:min_length], label='FB Prophet', marker='.')
+plt.plot(df_valid.index[:min_length], df_valid['Forecast_XGBoost'][:min_length], label='XGBoost', marker='.')
+plt.plot(df_valid.index[:min_length], test_predict_inv[:min_length].flatten(), label='LSTM', marker='.')
+plt.plot(df_valid.index[:min_length], hybrid_predictions, label='Hybrid Model', marker='.')
+plt.legend()
+plt.title('Bitcoin Price Prediction Comparison')
+plt.show()
+
+# Evaluate the performance of the hybrid model
+hybrid_rmse = np.sqrt(mean_squared_error(df_valid['Weighted_Price'][:min_length], hybrid_predictions))
+hybrid_mae = mean_absolute_error(df_valid['Weighted_Price'][:min_length], hybrid_predictions)
+
+print(f"Hybrid Model RMSE: {hybrid_rmse}")
+print(f"Hybrid Model MAE: {hybrid_mae}")
+
+     
+
+Hybrid Model RMSE: 1116.5873601430071
+Hybrid Model MAE: 841.1706104283116
+
+# Calculate the average of RMSE and MAE
+average_error = (hybrid_rmse + hybrid_mae) / 2
+
+# Calculate the accuracy percentage
+accuracy_percentage_LSTM = 100 - (average_error / 1000)
+
+print("Accuracy percentage:", accuracy_percentage_LSTM)
+     
+Accuracy percentage: 98.90767130710513
